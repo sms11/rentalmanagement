@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum CollectionStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+}
+
+enum NotificationType {
+  REMINDER
+  ALERT
+  INFO
+}
+
+enum ReminderType {
+  SEVEN_DAY
+  THREE_DAY
+  ONE_DAY
+  DUE_DAY
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedCollections RentCollection[]
+  notifications       Notification[]
+}
+
+model Property {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenants Tenant[]
+}
+
+model Tenant {
+  id                String    @id @default(uuid())
+  propertyId        String
+  name              String
+  email             String?
+  phone             String?
+  leaseStartDate    DateTime?
+  leaseEndDate      DateTime?
+  rentAmount        Float
+  depositAmount     Float     @default(0)
+  rentDueDay        Int       @default(1)
+  lateFeePercentage Float     @default(0)
+  notes             String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  property    Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  collections RentCollection[]
+}
+
+model RentCollection {
+  id            String           @id @default(uuid())
+  tenantId      String
+  assignedToId  String?
+  dueDate       DateTime
+  amount        Float
+  lateFee       Float            @default(0)
+  status        CollectionStatus @default(PENDING)
+  paidAmount    Float            @default(0)
+  paidDate      DateTime?
+  paymentMethod String?
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedTo   User?         @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  reminderLogs ReminderLog[]
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ReminderLog {
+  id               String       @id @default(uuid())
+  rentCollectionId String
+  reminderType     ReminderType
+  sentAt           DateTime     @default(now())
+  sentViaEmail     Boolean      @default(false)
+  sentViaApp       Boolean      @default(false)
+
+  rentCollection RentCollection @relation(fields: [rentCollectionId], references: [id], onDelete: Cascade)
+}

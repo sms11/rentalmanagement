@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: rent-manager-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-rentmanager}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rentmanager123}
+      POSTGRES_DB: ${DB_NAME:-rent_manager}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-rentmanager} -d ${DB_NAME:-rent_manager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rent-manager-network
+
+  # Backend API
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rent-manager-server
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-rentmanager}:${DB_PASSWORD:-rentmanager123}@db:5432/${DB_NAME:-rent_manager}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      NODE_ENV: production
+      PORT: 3000
+      CLIENT_URL: ${CLIENT_URL:-http://localhost}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rent-manager-network
+
+  # Frontend
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000/api}
+    container_name: rent-manager-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - rent-manager-network
+
+volumes:
+  postgres_data:
+
+networks:
+  rent-manager-network:
+    driver: bridge
